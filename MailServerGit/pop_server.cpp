@@ -54,6 +54,7 @@ char pop_user[USERNAMELENGTH];
 char pop_pass[PASSWORDLENGTH]; //maybe need the path here too?
 char pop_path[MAXPATHLENGTH];
 bool pop_logged_in;
+POPListing popList;
 
 //----------------Mail Events Processing
 
@@ -90,7 +91,6 @@ void pop_respond(int client_sockfd, char* request, UserDictionary users) {
         char param[10];
         get_args;
         copy_args(pa,pb,param);
-        POPListing popList;
         int success = getList(pop_path, popList);
         if (success == FUNCTION_SUCCESS) {
             if ((atoi(param)>0) && (atoi(param)-1<popList.POPEntry.size())) {
@@ -98,7 +98,7 @@ void pop_respond(int client_sockfd, char* request, UserDictionary users) {
                     send_data(client_sockfd, format("%s\r\n",format(responses[ERR],
                                                                     format(popmessages[4],atoi(param)).c_str()).c_str()).c_str());
                 } else {
-                    popList.POPEntry[atoi(param)-1].deleted = true; //mark as deleted
+                    popList.POPEntry[atoi(param)-1].deleted = YES; //mark as deleted
                     send_data(client_sockfd, format("%s\r\n",format(responses[OK],
                                                                     format(popmessages[5],atoi(param)).c_str()).c_str()).c_str());
                 }
@@ -112,7 +112,6 @@ void pop_respond(int client_sockfd, char* request, UserDictionary users) {
         char param[10];
         get_args;
         copy_args(pa,pb,param);
-        POPListing popList;
         int success = getList(pop_path, popList);
         if (success == FUNCTION_SUCCESS) {
             if (atoi(param)>0) {
@@ -136,12 +135,15 @@ void pop_respond(int client_sockfd, char* request, UserDictionary users) {
     } else if ((strncmp(request, "NOOP", 4) == 0) && pop_logged_in) {
         send_empty_ok;
     } else if (strncmp(request, "QUIT", 4) == 0) {
-        POPListing popList;
         int success = getList(pop_path, popList);
         if (success == FUNCTION_SUCCESS) {
             for (int i=0; i<popList.POPEntry.size(); i++) {
-                if (popList.POPEntry[i].deleted) {
-                    remove(popList.POPEntry[i].messagePath); //delete all messages tagged for deletion
+                cout << "checking " << i << endl;
+                if (popList.POPEntry[i].deleted == YES) {
+                    create_log_entry(APPNAME, format("POP Deleting: %s", popList.POPEntry[i].messagePath));
+                    if (remove(popList.POPEntry[i].messagePath) != FUNCTION_SUCCESS) { //delete all messages tagged for deletion
+                        create_log_entry(APPNAME, format("POP **Error** Deleting: %s", popList.POPEntry[i].messagePath));
+                    }
                 }
             }
         }
@@ -153,7 +155,6 @@ void pop_respond(int client_sockfd, char* request, UserDictionary users) {
         char param[10];
         get_args;
         copy_args(pa,pb,param);
-        POPListing popList;
         int success = getList(pop_path, popList);
         if (success == FUNCTION_SUCCESS) {
             if ((atoi(param)>0) && (atoi(param)-1<popList.POPEntry.size())) {
@@ -173,7 +174,6 @@ void pop_respond(int client_sockfd, char* request, UserDictionary users) {
             send_err_message;
         }
     } else if ((strncmp(request, "RSET", 4) == 0) && pop_logged_in) {
-        POPListing popList;
         int success = getList(pop_path, popList);
         if (success == FUNCTION_SUCCESS) {
             for (int i=0; i<popList.POPEntry.size(); i++) {
@@ -186,7 +186,6 @@ void pop_respond(int client_sockfd, char* request, UserDictionary users) {
             send_err_message;
         }
     } else if ((strncmp(request, "STAT", 4) == 0) && pop_logged_in) { // don't include deleted messages
-        POPListing popList;
         int success = getList(pop_path, popList);
         if (success == FUNCTION_SUCCESS) {
             sprintf(result,"%s %lu %lu\r\n",format(responses[OK],"").c_str(),popList.POPEntry.size(),popList.totalSize);
@@ -210,7 +209,6 @@ void pop_respond(int client_sockfd, char* request, UserDictionary users) {
         } else {
             send_err_message;
         }
-        POPListing popList;
         int success = getList(pop_path, popList);
         if ((success == FUNCTION_SUCCESS) && ((atoi(lines_co)>0) && (atoi(lines_co)<200))) {
             if ((atoi(message_no)>0) && (atoi(message_no)-1<popList.POPEntry.size())) {
@@ -254,7 +252,6 @@ void pop_respond(int client_sockfd, char* request, UserDictionary users) {
         char param[10];
         get_args;
         copy_args(pa,pb,param);
-        POPListing popList;
         int success = getList(pop_path, popList);
         if (success == FUNCTION_SUCCESS) { // don't show deleted messages
             if (atoi(param)>0) {

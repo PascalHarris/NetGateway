@@ -51,27 +51,37 @@ string getMessageID(string email) {
     return returnValue;
 }
 
+bool filePresent(POPListing &poplist, const char* filepath) {
+    for (int i=0;i<poplist.POPEntry.size();i++) {
+        if (strncmp(poplist.POPEntry[i].messagePath,filepath,strlen(filepath))==0) {
+            return YES;
+        }
+    }
+    return NO;
+}
+
 //--------------------------------POP Tools
 int getList(const char* mailDirectory, POPListing &poplist) {
-    POPListing returnInfo;
     DIR *dir;
     struct dirent *ent;
     int count = 0, cumulative_size=0;
     if ((dir = opendir (mailDirectory)) != NULL) {
-        // print all the files and directories within directory 
+        // print all the files and directories within directory
         while ((ent = readdir (dir)) != NULL) {
             if ((strncmp(ent->d_name, ".", 1) != 0)) {
-                poplist.POPEntry.push_back(POPEnt()); //create new entry
                 char filepath[MAXPATHLENGTH];
                 strcpy(filepath, mailDirectory);
                 strcat(filepath, "/");
                 strcat(filepath, ent->d_name);
                 
-                strcpy(poplist.POPEntry[count].messagePath, filepath);
-                struct stat stat_buf;
-                int rc = stat(filepath, &stat_buf);
-                poplist.POPEntry[count].messageSize = (rc == 0 ? stat_buf.st_size : 0);
-                poplist.POPEntry[count].deleted = false;
+                if (filePresent(poplist,filepath)==NO) {
+                    poplist.POPEntry.push_back(POPEnt()); //create new entry
+                    strcpy(poplist.POPEntry[count].messagePath, filepath);
+                    struct stat stat_buf;
+                    int rc = stat(filepath, &stat_buf);
+                    poplist.POPEntry[count].messageSize = (rc == 0 ? stat_buf.st_size : 0);
+                    poplist.POPEntry[count].deleted = false;
+                }
                 cumulative_size += poplist.POPEntry[count].messageSize;
                 count++;
             }
