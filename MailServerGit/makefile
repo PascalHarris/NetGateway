@@ -32,4 +32,4 @@ load_settings.o : load_settings.cpp
 cpp_wangers.o : cpp_wangers.cpp
 	$(CC) -c cpp_wangers.cpp
 clean :
-	rm -f netgateway *.o
+	rm -f $(TARGET) *.o
