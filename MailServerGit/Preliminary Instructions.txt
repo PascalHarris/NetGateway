@@ -1,0 +1,39 @@
+This is an early version of this Mailserver / Mailgateway software.  So early that I haven't even decided what to call it yet. You even need to build it yourself!
+
+What it does
+------------
+This software enables vintage computers to receive modern, IMAP, email and send email via a gateway helper computer.  A Raspberry Pi would be perfect!  I've used it to receive email from Gmail on an LCIII running MacOS 7.5, but there's no reason why it shouldn't work for any vintage computer with email client software running. Amiga, ST, DOS, Apple II - it should work for all.
+
+Tested on
+---------
+It's intended to run on a Linux box like a Raspberry Pi - but, so far, it's only been tested on macOS (X - don't get too excited - this won't even run on A/UX, let alone a classic Mac!)
+This hasn't yet been tested with SLIP but there's no reason that it shouldn't work in such a configuration - which could be handy if you want to use Eudora 1 on your Mac Plus, for example.
+
+Installer
+---------
+As yet unfinished. Don't even try to use it!  Right now you'll have to ensure that you have LibCURL and gcc (or clang) installed and use the make file.
+
+Configuration and Execution
+---------------------------
+To configure it, fill in the config.cfg file with the details for your email account.  Generate the password for the config file by typing:
+
+mailgateway -p yourpasswordhere
+
+to generate an encrypted version of your password for the config file.  Do not be tempted to make the helper computer visible on the internet - the encryption is only very light and will discourage casual malfeasance only. 
+
+Execute mailgateway by typing
+
+mailgateway -c path/to/your/config.cfg
+
+Connecting to Mailgateway.  Some email clients (Eudora, for example) will happily let your connect to your helper server as joe.bloggs@123.123.123.123 (where 123.123.123.123 is the IP address of your helper server).  Others (Claris emailer for example) require a domain name.  In this case, set up your hosts files on the vintage computer to overcome this (minor) roadblock.
+
+Bugs
+----
+Receiving: Email clients on the vintage computer will attempt to redownload all email each time they connect rather than just fetching new email.  Maybe the old email is not being deleted correctly after download.  Either way, this logic needs revisiting.
+
+Sending: A connection appears to be made to send email - but the email never arrives at its destination.  Again, this logic needs revisiting.
+
+Future Development
+------------------
+When a fetch is made by the vintage computer, the helper server should also take the opportunity to refresh its database.
+Many escape sequences are gibberish to the vintage computer.  The helper server should reformat any email into a vintage compatible form before passing it on to the old computer.
