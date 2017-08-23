@@ -23,8 +23,9 @@
 #define state_initial         2
 #define state_sender          3
 #define state_recipient       4
-#define state_data_expected   5
-#define state_i_authenticated 6
+#define state_i_authenticated 5
+#define state_data_expected   6
+#define state_ready_to_send   7
 
 #define MAX_RCPT_USR          50
 #define MAX_EMAIL_ADDRESS_LENGTH 128 // yes - I know it should be longer
@@ -47,40 +48,41 @@ struct thread_args {
 using namespace std;
 
 int mail_stat;
-int recipient_count = 0; 
+int recipient_count = 0;
 char recipient_list[MAX_RCPT_USR][MAX_EMAIL_ADDRESS_LENGTH] = {""};
 char sender[MAX_EMAIL_ADDRESS_LENGTH] = "";
 
-char *payload_text;
+string payload_temp;
 
-struct upload_status {
-    int lines_read;
+struct EmailData {
+    const char *readptr;
+    long sizeleft;
 };
 
 static size_t payload_source(void *ptr, size_t size, size_t nmemb, void *userp) {
-    struct upload_status *upload_ctx = (struct upload_status *)userp;
-    const char *data;
+    struct EmailData *upload_email = (struct EmailData *)userp;
     
-    if((size == 0) || (nmemb == 0) || ((size*nmemb) < 1)) {
+    if (size*nmemb < 1) {
         return 0;
     }
     
-    data = &payload_text[upload_ctx->lines_read];
-    
-    if(data) {
-        size_t len = strlen(data);
-        memcpy(ptr, data, len);
-        upload_ctx->lines_read++;
-        return len;
+    if(upload_email->sizeleft) {
+        *(char *)ptr = upload_email->readptr[0]; /* copy one single byte */
+        upload_email->readptr++;                 /* advance pointer */
+        upload_email->sizeleft--;                /* less data left */
+        return 1;                        /* we return 1 byte at a time! */
     }
-    return 0;
+    
+    return 0;                          /* no more data left to deliver */
 }
 
 int send_mail_data(UserDictionary users) {
     CURL *curl;
     CURLcode res = CURLE_OK;
     struct curl_slist *recipients = NULL;
-    struct upload_status upload_ctx;
+    struct EmailData upload_email;
+    upload_email.readptr = payload_temp.c_str();
+    upload_email.sizeleft = (long)strlen(payload_temp.c_str());
     
     int send_account = 0; // in the event that no valid account can be found, we'll send from the SMTP account associated with account 0
     for (int i=0; i<users.settingsCount; i++) {
@@ -93,8 +95,6 @@ int send_mail_data(UserDictionary users) {
     string s_username(users.user[send_account].smtp.username);
     string s_password(users.user[send_account].smtp.password);
     string s_url(users.user[send_account].smtp.url);
-    
-    upload_ctx.lines_read = 0;
     
     curl = curl_easy_init();
     if(curl) {
@@ -109,7 +109,7 @@ int send_mail_data(UserDictionary users) {
         }
         curl_easy_setopt(curl, CURLOPT_MAIL_RCPT, recipients);
         curl_easy_setopt(curl, CURLOPT_READFUNCTION, payload_source);
-        curl_easy_setopt(curl, CURLOPT_READDATA, &upload_ctx);
+        curl_easy_setopt(curl, CURLOPT_READDATA, &upload_email);
         curl_easy_setopt(curl, CURLOPT_UPLOAD, 1L);
         curl_easy_setopt(curl, CURLOPT_VERBOSE, 1L); // debug only.
         res = curl_easy_perform(curl);
@@ -119,6 +119,8 @@ int send_mail_data(UserDictionary users) {
         
         /* Always cleanup */
         curl_easy_cleanup(curl);
+        
+        curl_easy_reset(curl);
         
         if(res != CURLE_OK) {
             create_log_entry(APPNAME, format("SMTP Error forwarding to %s - %s",s_url.c_str(),curl_easy_strerror(res)));
@@ -136,16 +138,19 @@ void smtp_respond(int client_sockfd, char* request, UserDictionary users) {
     memset(output, 0, sizeof(output));
     
     if (mail_stat == state_data_expected) { // aha!  The business end.  Email data to send
-        payload_text = (char*)malloc(strlen(request)+1);
-        strncpy(payload_text,request,strlen(payload_text));
-        int success = send_mail_data(users);
-        free(payload_text);
-        if (success == FUNCTION_SUCCESS) {
-            send_empty_ok;
+        string stringreq = clean_whitespace(format("%s",request));
+        
+        if (strncmp(stringreq.c_str(), ".", strlen(stringreq.c_str())) == 0) {
+            int success = send_mail_data(users);
+            if (success == FUNCTION_SUCCESS) {
+                send_empty_ok;
+            } else {
+                send_data(client_sockfd, smtpmessages[4]);
+            }
+            mail_stat = state_initial; // might have to be state_reset
         } else {
-            send_data(client_sockfd, smtpmessages[4]);
+            payload_temp=payload_temp+format("%s\n",request);
         }
-        mail_stat = state_initial; // might have to be state_reset
     } else if (strncmp(request, "HELO", 4) == 0) {
         if (mail_stat == state_reset) {
             send_empty_ok;
@@ -155,14 +160,14 @@ void smtp_respond(int client_sockfd, char* request, UserDictionary users) {
         } else {
             send_error_not_implemented;
         }
-    } else if (strncmp(request, "MAIL FROM", 9) == 0) {
+    } else if (strncmp(request, "MAIL FROM", 9) == 0) { // error if not surrounded by <> braces
         if (mail_stat == state_initial || mail_stat == state_i_authenticated) {
             get_args(sender);
             mail_stat = state_sender;
         } else {
             send_data(client_sockfd, "503 Error: send HELO/EHLO first\r\n");
         }
-    } else if (strncmp(request, "RCPT TO", 7) == 0) {
+    } else if (strncmp(request, "RCPT TO", 7) == 0) { // error if not surrounded by <> braces
         if ((mail_stat == state_sender || mail_stat == state_recipient) && recipient_count < MAX_RCPT_USR) {
             get_args(recipient_list[recipient_count++]);
             mail_stat = state_recipient;
@@ -205,7 +210,7 @@ void smtp_respond(int client_sockfd, char* request, UserDictionary users) {
 void *smtp_proc(void* t_params) {
     int client_sockfd, len;
     char buf[BUF_SIZE];
-        
+    
     thread_args *thread_params = static_cast<thread_args*>(t_params);
     UserDictionary userarg = thread_params->users;
     
@@ -233,7 +238,7 @@ void *smtp_proc(void* t_params) {
 //----------------Mail Server
 void* smtp_server_thread(void* user_arg) {
     
-    signal(SIGPIPE, SIG_IGN); 
+    signal(SIGPIPE, SIG_IGN);
     
     int server_sockfd, client_sockfd;
     socklen_t sin_size;
@@ -270,14 +275,11 @@ void* smtp_server_thread(void* user_arg) {
     //accept requests from clients,loop and wait.
     sin_size = sizeof(client_addr);
     while (1) {
-        if ((client_sockfd = accept(server_sockfd,
-                                    (struct sockaddr *) &client_addr, &sin_size)) == -1) {
-            //perror("S:accept error!\n");
-            //perror("SMTP accept request error\n");
+        if ((client_sockfd = accept(server_sockfd, (struct sockaddr *) &client_addr, &sin_size)) == -1) {
             sleep(1);
             continue;
         }
-
+        
         struct thread_args thread_params;
         thread_params.client_sockfd = client_sockfd;
         thread_params.users = *(UserDictionary*)user_arg;

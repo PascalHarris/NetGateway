@@ -20,7 +20,7 @@
 #define TEMPNAME "temp"
 
 #define APPNAME "Mailgateway"
-#define VERSIONNUMBER 0.2
+#define VERSIONNUMBER 0.3
 #define YEAR 2017
 
 #define MAX_CLIENTS 32

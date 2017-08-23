@@ -9,7 +9,6 @@
 
 using namespace std;
 
-//int load_IMAP_Settings(char* configLocation, IMAPSetting &imap) {
 int load_User_Settings(char* configLocation, UserDictionary &users) {
     char configPath[MAXPATHLENGTH]; //buffer for alternative config filename
     

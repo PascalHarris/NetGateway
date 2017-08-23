@@ -32,6 +32,25 @@ private:
     std::vector<T> data_;
 };
 
+static unsigned int hexval_tbl[256] = {
+    64, 64, 64, 64, 64, 64, 64, 64, 64, 32, 16, 64, 64, 16, 64, 64,
+    64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64,
+    32, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64,
+    0,  1,  2,  3,  4,  5,  6,  7,  8,  9, 64, 64, 64, 64, 64, 64,
+    64, 10, 11, 12, 13, 14, 15, 64, 64, 64, 64, 64, 64, 64, 64, 64,
+    64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64,
+    64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64,
+    64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64,
+    64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64,
+    64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64,
+    64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64,
+    64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64,
+    64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64,
+    64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64,
+    64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64,
+    64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64
+};
+
 static char B64[64] = {
     'A','B','C','D','E','F','G',
     'H','I','J','K','L','M','N',
@@ -45,11 +64,18 @@ static char B64[64] = {
     '7','8','9','+','/'
 };
 
+unsigned char *quoted_printable_decode(const unsigned char *str, 
+                                       size_t length, 
+                                       size_t *ret_length, 
+                                       int replace_us_by_ws);
 char *base64_decode(char *s);
 char* uuid_generator(int length);
 bool sortStringNumber (std::string i, std::string j);
 std::string clean_whitespace(std::string source_string);
 std::string format(const char* fmt, ...);
+void ci_find_and_replace(std::string& str,
+                         std::string oldStr,
+                         std::string newStr);
 void find_and_replace(std::string& str,
                       const std::string& oldStr,
                       const std::string& newStr);

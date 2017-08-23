@@ -138,7 +138,6 @@ void pop_respond(int client_sockfd, char* request, UserDictionary users) {
         int success = getList(pop_path, popList);
         if (success == FUNCTION_SUCCESS) {
             for (int i=0; i<popList.POPEntry.size(); i++) {
-                cout << "checking " << i << endl;
                 if (popList.POPEntry[i].deleted == YES) {
                     create_log_entry(APPNAME, format("POP Deleting: %s", popList.POPEntry[i].messagePath));
                     if (remove(popList.POPEntry[i].messagePath) != FUNCTION_SUCCESS) { //delete all messages tagged for deletion
